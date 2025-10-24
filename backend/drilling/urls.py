@@ -8,4 +8,5 @@ router.register(r"layers", views.LayerViewSet)
 
 urlpatterns = [
     path("", include(router.urls)),
+    path("get-csrf/", views.WellViewSet.as_view({"get": "get_csrf"})),
 ]
