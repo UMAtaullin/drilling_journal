@@ -169,24 +169,16 @@ class ConnectionManager {
 
 class WellManager {
   constructor() {
-    this.currentView = 'list';
     this.wells = [];
-    this.api = new APIService();
     this.localStorageKey = 'drilling_wells_offline';
+    this.api = new APIService();
+    this.init();
+    // this.currentView = 'list';
   }
 
   async init() {
-    console.log('WellManager init started');
-
-    try {
-      await this.loadWells();
-      await this.showWellsList();
-      this.setupEventListeners();
-      console.log('WellManager init completed');
-    } catch (error) {
-      console.error('WellManager init error:', error);
-      throw error;
-    }
+    await this.loadWells();
+    this.showWellsList();
   }
 
   async loadWells() {
@@ -198,7 +190,7 @@ class WellManager {
 
         const offlineWells = this.getOfflineWells();
         this.wells = this.mergeWells(serverWells, offlineWells);
-        this.saveOfflineWells();
+        this.saveWells();
       } else {
         console.log('Оффлайн режим, используем локальные данные');
         this.wells = this.getOfflineWells();
@@ -214,17 +206,16 @@ class WellManager {
     return offlineWells ? JSON.parse(offlineWells) : [];
   }
 
-  saveOfflineWells() {
+  async saveWells() {
     localStorage.setItem(this.localStorageKey, JSON.stringify(this.wells));
+    console.log('Сохранено скважин:', this.wells.length);
   }
 
   mergeWells(serverWells, offlineWells) {
     const merged = [...serverWells];
 
     offlineWells.forEach(offlineWell => {
-      // Если это оффлайн скважина (имеет временный ID)
       if (offlineWell.id && offlineWell.id.toString().startsWith('offline_')) {
-        // Проверяем, нет ли такой же скважины на сервере
         const existsOnServer = serverWells.some(serverWell =>
           serverWell.name === offlineWell.name &&
           serverWell.area === offlineWell.area
@@ -239,6 +230,21 @@ class WellManager {
     return merged;
   }
 
+  saveOfflineWells() {
+    localStorage.setItem(this.localStorageKey, JSON.stringify(this.wells));
+  }
+
+  getLithologyName(code) {
+    const lithologies = {
+      'PRS': 'ПРС',
+      'PEAT': 'Торф',
+      'LOAM': 'Суглинок',
+      'SANDY_LOAM': 'Супесь',
+      'SAND': 'Песок'
+    };
+    return lithologies[code] || code;
+  }
+
   async saveWellsToLocalStorage() {
     localStorage.setItem(this.localStorageKey, JSON.stringify(this.wells));
   }
@@ -247,55 +253,175 @@ class WellManager {
     // Обработчики будут добавляться динамически
   }
 
-  async showWellsList() {
-    await this.loadWells(); // Всегда актуальные данные
+  showWellsList() {
+    // Сортируем скважины: сначала новые (по ID в обратном порядке)
+    const sortedWells = [...this.wells].sort((a, b) => b.id - a.id);
 
     const html = `
-            <div class="component">
+        <div class="component">
+            <div class="list-header">
                 <h2>Список скважин</h2>
-                <div class="connection-info">
-                    <small>Режим: ${navigator.onLine ? 'ОНЛАЙН' : 'ОФФЛАЙН'}</small>
-                </div>
-                <div class="wells-list">
-                    ${this.wells.length === 0 ?
-        '<p class="no-wells">Нет созданных скважин</p>' :
-        this.wells.map(well => `
-                            <div class="well-item" data-well-id="${well.id}">
-                                <h3>${well.name}</h3>
-                                <p>Участок: ${well.area}</p>
-                                <p>Сооружение: ${well.structure}</p>
-                                <p>Проектная глубина: ${well.design_depth} м</p>
-                                <small>ID: ${well.id} ${well.isOffline ? '(оффлайн)' : ''}</small>
-                            </div>
-                        `).join('')
-      }
-                </div>
-                <button id="create-well-btn" class="btn btn-primary">Создать новую скважину</button>
-                <button id="sync-btn" class="btn btn-secondary" ${navigator.onLine ? '' : 'disabled'}>
-                    Синхронизировать
+                <button id="create-well-btn" class="btn btn-primary btn-large">
+                    ➕ Создать скважину
                 </button>
             </div>
-        `;
+            
+            <div class="stats-bar">
+                <div class="stat-item">
+                    <span class="stat-number">${this.wells.length}</span>
+                    <span class="stat-label">Всего скважин</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-number">${this.wells.reduce((total, well) => total + (well.layers ? well.layers.length : 0), 0)}</span>
+                    <span class="stat-label">Всего слоев</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-number">${this.wells.filter(w => w.id && w.id.toString().startsWith('offline_')).length}</span>
+                    <span class="stat-label">Оффлайн</span>
+                </div>
+            </div>
+            
+            <div class="wells-list">
+                ${sortedWells.length === 0 ? `
+                    <div class="empty-state">
+                        <div class="empty-icon">📋</div>
+                        <h3>Нет созданных скважин</h3>
+                        <p>Создайте первую скважину чтобы начать работу</p>
+                        <button id="create-first-well" class="btn btn-primary">Создать первую скважину</button>
+                    </div>
+                ` : sortedWells.map(well => `
+                    <div class="well-card ${well.id && well.id.toString().startsWith('offline_') ? 'offline' : ''}" data-well-id="${well.id}">
+                        <div class="well-card-header">
+                            <h3 class="well-name">${well.name}</h3>
+                            <span class="well-status ${well.id && well.id.toString().startsWith('offline_') ? 'status-offline' : 'status-online'}">
+                                ${well.id && well.id.toString().startsWith('offline_') ? 'ОФФЛАЙН' : 'ОНЛАЙН'}
+                            </span>
+                        </div>
+                        
+                        <div class="well-info-grid">
+                            <div class="info-item">
+                                <span class="label">Участок:</span>
+                                <span class="value">${well.area}</span>
+                            </div>
+                            <div class="info-item">
+                                <span class="label">Сооружение:</span>
+                                <span class="value">${well.structure}</span>
+                            </div>
+                            <div class="info-item">
+                                <span class="label">Глубина:</span>
+                                <span class="value">${well.design_depth} м</span>
+                            </div>
+                        </div>
+                        
+                        ${well.layers && well.layers.length > 0 ? `
+                            <div class="layers-summary">
+                                <div class="summary-header">
+                                    <span class="layers-count">${well.layers.length} слоев</span>
+                                    <span class="total-thickness">Общая мощность: ${well.layers.reduce((sum, layer) => sum + parseFloat(layer.thickness), 0).toFixed(2)} м</span>
+                                </div>
+                                <div class="layers-preview">
+                                    ${well.layers.slice(0, 2).map(layer => `
+                                        <div class="layer-preview-item">
+                                            <span class="depth-range">${layer.start_depth}–${layer.end_depth} м</span>
+                                            <span class="lithology ${layer.lithology}">${this.getLithologyName(layer.lithology)}</span>
+                                            <span class="thickness">${layer.thickness} м</span>
+                                        </div>
+                                    `).join('')}
+                                    ${well.layers.length > 2 ? `
+                                        <div class="more-layers">+${well.layers.length - 2} еще</div>
+                                    ` : ''}
+                                </div>
+                            </div>
+                        ` : `
+                            <div class="no-layers-notice">
+                                <span class="icon">🔄</span>
+                                <span>Нет добавленных слоев</span>
+                            </div>
+                        `}
+                        
+                        <div class="well-card-actions">
+                            <button class="btn-action btn-view" data-well-id="${well.id}">
+                                👁️ Просмотр
+                            </button>
+                            <button class="btn-action btn-add-layer" data-well-id="${well.id}">
+                                ➕ Слои
+                            </button>
+                            ${navigator.onLine && well.id && well.id.toString().startsWith('offline_') ? `
+                                <button class="btn-action btn-sync" data-well-id="${well.id}">
+                                    🔄 Синхр.
+                                </button>
+                            ` : ''}
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+            
+            ${this.wells.filter(w => w.id && w.id.toString().startsWith('offline_')).length > 0 && navigator.onLine ? `
+                <div class="sync-section">
+                    <button id="sync-all-btn" class="btn btn-success btn-large">
+                        🔄 Синхронизировать все оффлайн скважины (${this.wells.filter(w => w.id && w.id.toString().startsWith('offline_')).length})
+                    </button>
+                </div>
+            ` : ''}
+        </div>
+    `;
 
     document.getElementById('main-content').innerHTML = html;
 
+    // Обработчики для основных кнопок
     document.getElementById('create-well-btn').addEventListener('click', () => {
       this.showCreateWellForm();
     });
 
-    document.getElementById('sync-btn').addEventListener('click', () => {
-      this.syncOfflineData();
-    });
+    const createFirstBtn = document.getElementById('create-first-well');
+    if (createFirstBtn) {
+      createFirstBtn.addEventListener('click', () => {
+        this.showCreateWellForm();
+      });
+    }
 
-    // Добавляем обработчики для скважин
-    document.querySelectorAll('.well-item').forEach(item => {
-      item.addEventListener('click', (e) => {
-        const wellId = e.currentTarget.dataset.wellId;
+    // Обработчики для кнопок на карточках скважин
+    document.querySelectorAll('.btn-view').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const wellId = btn.dataset.wellId;
         this.showWellDetails(wellId);
       });
     });
 
-    this.currentView = 'list';
+    document.querySelectorAll('.btn-add-layer').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const wellId = btn.dataset.wellId;
+        this.showAddLayerForm(wellId);
+      });
+    });
+
+    document.querySelectorAll('.btn-sync').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const wellId = btn.dataset.wellId;
+        this.syncSingleWell(wellId);
+      });
+    });
+
+    // Обработчик для синхронизации всех
+    const syncAllBtn = document.getElementById('sync-all-btn');
+    if (syncAllBtn) {
+      syncAllBtn.addEventListener('click', () => {
+        this.syncOfflineData();
+      });
+    }
+
+    // Клик по карточке - открывает просмотр
+    document.querySelectorAll('.well-card').forEach(card => {
+      card.addEventListener('click', (e) => {
+        if (!e.target.closest('.btn-action')) {
+          const wellId = card.dataset.wellId;
+          this.showWellDetails(wellId);
+        }
+      });
+    });
   }
 
   async showCreateWellForm() {
@@ -492,6 +618,339 @@ class WellManager {
 
     document.getElementById('back-btn').addEventListener('click', () => {
       this.showWellsList();
+    });
+  }
+  // Добавляем этот метод в класс WellManager (после метода deleteLayer)
+  async syncSingleWell(wellId) {
+    if (!navigator.onLine) {
+      alert('Нет интернет-соединения для синхронизации');
+      return;
+    }
+
+    const well = this.wells.find(w => w.id === wellId);
+    if (!well) {
+      alert('Скважина не найдена');
+      return;
+    }
+
+    try {
+      const wellData = {
+        name: well.name,
+        area: well.area,
+        structure: well.structure,
+        design_depth: parseFloat(well.design_depth)
+      };
+
+      console.log('Синхронизация одной скважины:', wellData);
+      const newWell = await this.api.createWell(wellData);
+      console.log('Сервер ответил:', newWell);
+
+      // Заменяем оффлайн скважину на серверную версию
+      const index = this.wells.findIndex(w => w.id === wellId);
+      if (index !== -1) {
+        this.wells[index] = newWell;
+        await this.saveWells();
+        alert(`Скважина "${well.name}" успешно синхронизирована!`);
+        this.showWellsList();
+      }
+    } catch (error) {
+      console.error('Ошибка синхронизации скважины:', error);
+      alert('Ошибка синхронизации: ' + error.message);
+    }
+  }
+
+  // Обновляем метод syncOfflineData (исправляем ошибку с textContent)
+  async syncOfflineData() {
+    if (!navigator.onLine) {
+      alert('Нет интернет-соединения для синхронизации');
+      return;
+    }
+
+    const offlineWells = this.wells.filter(well =>
+      well.id && well.id.toString().startsWith('offline_')
+    );
+
+    console.log('Найдено оффлайн скважин для синхронизации:', offlineWells);
+
+    if (offlineWells.length === 0) {
+      alert('Нет оффлайн данных для синхронизации');
+      return;
+    }
+
+    // Показываем индикатор загрузки более безопасным способом
+    const syncAllBtn = document.getElementById('sync-all-btn');
+    if (syncAllBtn) {
+      const originalText = syncAllBtn.textContent;
+      syncAllBtn.textContent = '🔄 Синхронизация...';
+      syncAllBtn.disabled = true;
+    }
+
+    try {
+      let syncedCount = 0;
+      let errors = [];
+
+      for (const offlineWell of offlineWells) {
+        try {
+          console.log('Синхронизация скважины:', offlineWell);
+
+          const wellData = {
+            name: offlineWell.name,
+            area: offlineWell.area,
+            structure: offlineWell.structure,
+            design_depth: parseFloat(offlineWell.design_depth)
+          };
+
+          const newWell = await this.api.createWell(wellData);
+          console.log('Сервер ответил:', newWell);
+
+          // Заменяем оффлайн скважину на серверную версию
+          const index = this.wells.findIndex(w => w.id === offlineWell.id);
+          if (index !== -1) {
+            this.wells[index] = newWell;
+            syncedCount++;
+          }
+
+        } catch (error) {
+          console.error(`Ошибка синхронизации скважины ${offlineWell.name}:`, error);
+          errors.push(`${offlineWell.name}: ${error.message}`);
+        }
+      }
+
+      // Сохраняем обновленный список
+      await this.saveWells();
+
+      let message = `Успешно синхронизировано ${syncedCount} из ${offlineWells.length} скважин`;
+      if (errors.length > 0) {
+        message += `\n\nОшибки:\n${errors.join('\n')}`;
+      }
+
+      alert(message);
+      this.showWellsList();
+
+    } catch (error) {
+      console.error('Общая ошибка синхронизации:', error);
+      alert('Общая ошибка синхронизации: ' + error.message);
+    } finally {
+      // Восстанавливаем кнопку безопасным способом
+      const syncAllBtn = document.getElementById('sync-all-btn');
+      if (syncAllBtn) {
+        syncAllBtn.textContent = `🔄 Синхронизировать все оффлайн скважины (${this.wells.filter(w => w.id && w.id.toString().startsWith('offline_')).length})`;
+        syncAllBtn.disabled = false;
+      }
+    }
+  }
+
+  // Добавляем метод для быстрого добавления слоев (после syncSingleWell)
+  showAddLayerForm(wellId) {
+    const well = this.wells.find(w => w.id === wellId);
+    if (!well) return;
+
+    // Определяем следующую доступную глубину
+    let nextStartDepth = 0;
+    if (well.layers && well.layers.length > 0) {
+      const lastLayer = well.layers[well.layers.length - 1];
+      nextStartDepth = parseFloat(lastLayer.end_depth);
+    }
+
+    const html = `
+            <div class="component">
+                <div class="form-header">
+                    <h2>Добавить слой к скважине: ${well.name}</h2>
+                    <button id="back-to-well" class="btn btn-secondary">← Назад к скважине</button>
+                </div>
+                
+                <form id="quick-layer-form" class="quick-layer-form">
+                    <div class="depth-inputs">
+                        <div class="form-group">
+                            <label for="quick-start-depth">Начало слоя (м)</label>
+                            <input type="number" id="quick-start-depth" step="0.01" min="0" 
+                                   value="${nextStartDepth}" readonly>
+                            <small>Автоматически рассчитывается</small>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="quick-end-depth">Конец слоя (м) *</label>
+                            <input type="number" id="quick-end-depth" step="0.01" min="${nextStartDepth + 0.01}" 
+                                   max="${well.design_depth}" required 
+                                   placeholder="Введите глубину...">
+                            <small>Макс: ${well.design_depth} м</small>
+                        </div>
+                    </div>
+                    
+                    <div class="lithology-buttons">
+                        <label>Литология *</label>
+                        <div class="button-group">
+                            <button type="button" class="litho-btn active" data-lithology="PRS">ПРС</button>
+                            <button type="button" class="litho-btn" data-lithology="PEAT">Торф</button>
+                            <button type="button" class="litho-btn" data-lithology="LOAM">Суглинок</button>
+                            <button type="button" class="litho-btn" data-lithology="SANDY_LOAM">Супесь</button>
+                            <button type="button" class="litho-btn" data-lithology="SAND">Песок</button>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="quick-description">Описание (необязательно)</label>
+                        <textarea id="quick-description" rows="2" placeholder="Дополнительное описание слоя"></textarea>
+                    </div>
+                    
+                    <div class="form-actions">
+                        <button type="submit" class="btn btn-success btn-large">✅ Добавить слой</button>
+                    </div>
+                </form>
+                
+                ${well.layers && well.layers.length > 0 ? `
+                    <div class="existing-layers">
+                        <h3>Существующие слои</h3>
+                        <div class="layers-list">
+                            ${well.layers.map(layer => `
+                                <div class="layer-item">
+                                    <div class="layer-info">
+                                        <strong>${layer.start_depth} - ${layer.end_depth} м</strong>
+                                        <span class="lithology-badge ${layer.lithology}">${this.getLithologyName(layer.lithology)}</span>
+                                        <span class="thickness">${layer.thickness} м</span>
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                ` : ''}
+            </div>
+        `;
+
+    document.getElementById('main-content').innerHTML = html;
+
+    // Обработчик для кнопки назад
+    document.getElementById('back-to-well').addEventListener('click', () => {
+      this.showWellDetails(wellId);
+    });
+
+    // Обработчики для кнопок литологии
+    let selectedLithology = 'PRS';
+    document.querySelectorAll('.litho-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.litho-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        selectedLithology = btn.dataset.lithology;
+      });
+    });
+
+    // Обработчик формы
+    document.getElementById('quick-layer-form').addEventListener('submit', (e) => {
+      e.preventDefault();
+      this.addLayerQuick(wellId, selectedLithology);
+    });
+
+    // Автофокус на поле конечной глубины
+    document.getElementById('quick-end-depth').focus();
+  }
+
+  // Метод для быстрого добавления слоя
+  addLayerQuick(wellId, lithology) {
+    const well = this.wells.find(w => w.id === wellId);
+    if (!well) return;
+
+    const startDepth = parseFloat(document.getElementById('quick-start-depth').value);
+    const endDepth = parseFloat(document.getElementById('quick-end-depth').value);
+    const description = document.getElementById('quick-description').value.trim();
+
+    // Валидация
+    if (!endDepth) {
+      alert('Пожалуйста, укажите конечную глубину');
+      return;
+    }
+
+    if (endDepth <= startDepth) {
+      alert('Конечная глубина должна быть больше начальной');
+      return;
+    }
+
+    if (endDepth > well.design_depth) {
+      alert('Конечная глубина не может превышать проектную глубину скважины');
+      return;
+    }
+
+    // Проверка перекрытия слоев
+    if (well.layers) {
+      const isOverlapping = well.layers.some(layer =>
+        (startDepth < layer.end_depth && endDepth > layer.start_depth)
+      );
+
+      if (isOverlapping) {
+        alert('Слой перекрывается с существующими слоями');
+        return;
+      }
+    }
+
+    const layer = {
+      id: Date.now().toString(),
+      start_depth: startDepth,
+      end_depth: endDepth,
+      lithology: lithology,
+      description: description,
+      thickness: (endDepth - startDepth).toFixed(2)
+    };
+
+    if (!well.layers) well.layers = [];
+    well.layers.push(layer);
+
+    // Сортируем слои по глубине
+    well.layers.sort((a, b) => a.start_depth - b.start_depth);
+
+    this.saveWells();
+    alert(`Слой ${startDepth}-${endDepth} м добавлен успешно!`);
+
+    // Если осталось место, предлагаем добавить следующий слой
+    const remainingDepth = well.design_depth - endDepth;
+    if (remainingDepth > 0.1) {
+      if (confirm(`Добавить следующий слой? Осталось ${remainingDepth.toFixed(2)} м`)) {
+        this.showAddLayerForm(wellId);
+      } else {
+        this.showWellDetails(wellId);
+      }
+    } else {
+      alert('Достигнута проектная глубина скважины!');
+      this.showWellDetails(wellId);
+    }
+  }
+  // Добавляем метод showWellDetails если его нет
+  showWellDetails(wellId) {
+    const well = this.wells.find(w => w.id === wellId);
+    if (!well) return;
+
+    // Простая версия для тестирования
+    const html = `
+            <div class="component">
+                <div class="well-details-header">
+                    <h2>${well.name}</h2>
+                    <button id="back-btn" class="btn btn-secondary">← Назад к списку</button>
+                </div>
+                
+                <div class="well-info">
+                    <p><strong>Участок:</strong> ${well.area}</p>
+                    <p><strong>Сооружение:</strong> ${well.structure}</p>
+                    <p><strong>Проектная глубина:</strong> ${well.design_depth} м</p>
+                    <p><strong>Статус:</strong> ${well.id && well.id.toString().startsWith('offline_') ? 'Оффлайн' : 'Синхронизировано'}</p>
+                </div>
+                
+                <div class="action-buttons">
+                    <button id="add-layers-btn" class="btn btn-success">➕ Добавить слои</button>
+                    <button id="back-to-list" class="btn btn-secondary">Назад к списку</button>
+                </div>
+            </div>
+        `;
+
+    document.getElementById('main-content').innerHTML = html;
+
+    document.getElementById('back-btn').addEventListener('click', () => {
+      this.showWellsList();
+    });
+
+    document.getElementById('back-to-list').addEventListener('click', () => {
+      this.showWellsList();
+    });
+
+    document.getElementById('add-layers-btn').addEventListener('click', () => {
+      this.showAddLayerForm(wellId);
     });
   }
 }

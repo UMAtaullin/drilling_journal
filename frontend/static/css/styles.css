@@ -234,3 +234,365 @@ body {
   color: #7f8c8d;
   font-style: italic;
 }
+
+/* Заголовок списка с кнопкой */
+.list-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.list-header h2 {
+  margin: 0;
+  color: #2c3e50;
+}
+
+.btn-large {
+  padding: 0.75rem 1.5rem;
+  font-size: 1.1rem;
+}
+
+/* Панель статистики */
+.stats-bar {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.stat-item {
+  background: white;
+  border: 1px solid #e9ecef;
+  border-radius: 8px;
+  padding: 1rem;
+  text-align: center;
+  flex: 1;
+  min-width: 120px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.stat-number {
+  display: block;
+  font-size: 1.5rem;
+  font-weight: bold;
+  color: #2c3e50;
+}
+
+.stat-label {
+  font-size: 0.8rem;
+  color: #6c757d;
+  text-transform: uppercase;
+}
+
+/* Состояние пустого списка */
+.empty-state {
+  text-align: center;
+  padding: 3rem 2rem;
+  background: white;
+  border: 2px dashed #dee2e6;
+  border-radius: 12px;
+  margin: 2rem 0;
+}
+
+.empty-icon {
+  font-size: 4rem;
+  margin-bottom: 1rem;
+  display: block;
+}
+
+.empty-state h3 {
+  color: #6c757d;
+  margin-bottom: 0.5rem;
+}
+
+.empty-state p {
+  color: #6c757d;
+  margin-bottom: 1.5rem;
+}
+
+/* Карточка скважины */
+.well-card {
+  background: white;
+  border: 1px solid #e9ecef;
+  border-radius: 12px;
+  padding: 1.5rem;
+  margin-bottom: 1rem;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  cursor: pointer;
+}
+
+.well-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  border-color: #3498db;
+}
+
+.well-card.offline {
+  border-left: 4px solid #e74c3c;
+}
+
+.well-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 1rem;
+}
+
+.well-name {
+  color: #2c3e50;
+  margin: 0;
+  font-size: 1.25rem;
+}
+
+.well-status {
+  padding: 0.25rem 0.75rem;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: bold;
+  text-transform: uppercase;
+}
+
+.status-online {
+  background: #d4edda;
+  color: #155724;
+}
+
+.status-offline {
+  background: #f8d7da;
+  color: #721c24;
+}
+
+/* Сетка информации о скважине */
+.well-info-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.info-item {
+  display: flex;
+  flex-direction: column;
+}
+
+.label {
+  font-size: 0.8rem;
+  color: #6c757d;
+  margin-bottom: 0.25rem;
+}
+
+.value {
+  font-weight: 600;
+  color: #2c3e50;
+}
+
+/* Сводка по слоям */
+.layers-summary {
+  background: #f8f9fa;
+  border-radius: 8px;
+  padding: 1rem;
+  margin-bottom: 1rem;
+}
+
+.summary-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+  font-size: 0.9rem;
+}
+
+.layers-count {
+  font-weight: 600;
+  color: #2c3e50;
+}
+
+.total-thickness {
+  color: #6c757d;
+}
+
+.layers-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.layer-preview-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem;
+  background: white;
+  border-radius: 6px;
+  font-size: 0.85rem;
+}
+
+.depth-range {
+  font-weight: 600;
+  color: #2c3e50;
+}
+
+.lithology {
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.lithology.PRS {
+  background: #8b4513;
+  color: white;
+}
+
+.lithology.PEAT {
+  background: #654321;
+  color: white;
+}
+
+.lithology.LOAM {
+  background: #deb887;
+  color: black;
+}
+
+.lithology.SANDY_LOAM {
+  background: #f4a460;
+  color: black;
+}
+
+.lithology.SAND {
+  background: #ffd700;
+  color: black;
+}
+
+.thickness {
+  color: #6c757d;
+  font-size: 0.8rem;
+}
+
+.more-layers {
+  text-align: center;
+  color: #6c757d;
+  font-style: italic;
+  padding: 0.5rem;
+}
+
+/* Уведомление об отсутствии слоев */
+.no-layers-notice {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 1rem;
+  background: #f8f9fa;
+  border-radius: 8px;
+  color: #6c757d;
+  margin-bottom: 1rem;
+  text-align: center;
+  justify-content: center;
+}
+
+.no-layers-notice .icon {
+  font-size: 1.2rem;
+}
+
+/* Кнопки действий на карточке */
+.well-card-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.btn-action {
+  padding: 0.5rem 1rem;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  flex: 1;
+  min-width: 80px;
+}
+
+.btn-view {
+  background: #3498db;
+  color: white;
+}
+
+.btn-view:hover {
+  background: #2980b9;
+}
+
+.btn-add-layer {
+  background: #27ae60;
+  color: white;
+}
+
+.btn-add-layer:hover {
+  background: #219a52;
+}
+
+.btn-sync {
+  background: #f39c12;
+  color: white;
+}
+
+.btn-sync:hover {
+  background: #e67e22;
+}
+
+/* Секция синхронизации */
+.sync-section {
+  margin-top: 2rem;
+  padding-top: 1.5rem;
+  border-top: 2px dashed #dee2e6;
+  text-align: center;
+}
+
+/* Адаптивность */
+@media (max-width: 768px) {
+  .list-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .list-header h2 {
+    text-align: center;
+  }
+
+  .stats-bar {
+    flex-direction: column;
+  }
+
+  .well-card-header {
+    flex-direction: column;
+    gap: 0.5rem;
+    align-items: flex-start;
+  }
+
+  .well-info-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .well-card-actions {
+    flex-direction: column;
+  }
+
+  .layer-preview-item {
+    flex-direction: column;
+    gap: 0.25rem;
+    text-align: center;
+  }
+}
+
+@media (max-width: 480px) {
+  .well-card {
+    padding: 1rem;
+  }
+
+  .btn-action {
+    min-width: auto;
+  }
+}
