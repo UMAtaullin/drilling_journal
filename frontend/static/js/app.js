@@ -343,9 +343,7 @@ class WellManager {
                             <button class="btn-action btn-view" data-well-id="${well.id}">
                                 👁️ Просмотр
                             </button>
-                            <button class="btn-action btn-add-layer" data-well-id="${well.id}">
-                                ➕ Слои
-                            </button>
+
                             ${navigator.onLine && well.id && well.id.toString().startsWith('offline_') ? `
                                 <button class="btn-action btn-sync" data-well-id="${well.id}">
                                     🔄 Синхр.
@@ -386,14 +384,6 @@ class WellManager {
         e.stopPropagation();
         const wellId = btn.dataset.wellId;
         this.showWellDetails(wellId);
-      });
-    });
-
-    document.querySelectorAll('.btn-add-layer').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        const wellId = btn.dataset.wellId;
-        this.showAddLayerForm(wellId);
       });
     });
 
@@ -596,30 +586,174 @@ class WellManager {
   }
 
   showWellDetails(wellId) {
+    console.log('showWellDetails вызван для скважины:', wellId);
+
     const well = this.wells.find(w => w.id == wellId);
     if (!well) return;
 
+    // Определяем следующую доступную глубину
+    let nextStartDepth = 0;
+    if (well.layers && well.layers.length > 0) {
+      const lastLayer = well.layers[well.layers.length - 1];
+      nextStartDepth = parseFloat(lastLayer.end_depth);
+    }
+
+    const totalThickness = well.layers ? well.layers.reduce((sum, layer) => sum + parseFloat(layer.thickness), 0) : 0;
+    const remainingDepth = well.design_depth - totalThickness;
+
     const html = `
-            <div class="component">
+        <div class="component">
+            <div class="well-details-header">
                 <h2>${well.name}</h2>
-                <div class="well-details">
-                    <p><strong>Участок:</strong> ${well.area}</p>
-                    <p><strong>Сооружение:</strong> ${well.structure}</p>
-                    <p><strong>Проектная глубина:</strong> ${well.design_depth} м</p>
-                    <p><strong>Статус:</strong> ${well.isOffline ? 'Оффлайн' : 'Синхронизировано'}</p>
-                </div>
-                <div class="form-actions">
-                    <button id="back-btn" class="btn btn-secondary">Назад к списку</button>
-                </div>
+                <button id="back-btn" class="btn btn-secondary">← Назад к списку</button>
             </div>
-        `;
+            
+            <div class="well-info">
+                <p><strong>Участок:</strong> ${well.area}</p>
+                <p><strong>Сооружение:</strong> ${well.structure}</p>
+                <p><strong>Проектная глубина:</strong> ${well.design_depth} м</p>
+                <p><strong>Статус:</strong> ${well.id && well.id.toString().startsWith('offline_') ? 'Оффлайн' : 'Синхронизировано'}</p>
+            </div>
+
+            <div class="layers-section">
+                <h3>Геологические слои</h3>
+                
+                ${well.layers && well.layers.length > 0 ? `
+                    <div class="layers-list">
+                        ${well.layers.map(layer => `
+                            <div class="layer-item">
+                                <strong>${layer.start_depth} - ${layer.end_depth} м</strong>
+                                <span class="lithology">${this.getLithologyName(layer.lithology)}</span>
+                                <span class="thickness">${layer.thickness} м</span>
+                                ${layer.description ? `<p>${layer.description}</p>` : ''}
+                            </div>
+                        `).join('')}
+                    </div>
+                    <div class="total-thickness">
+                        <strong>Общая мощность: ${totalThickness.toFixed(2)} м</strong>
+                    </div>
+                ` : `
+                    <p class="no-layers">Нет добавленных слоев</p>
+                `}
+                
+                ${remainingDepth > 0 ? `
+                    <div class="add-layer-form">
+                        <h4>Добавить новый слой</h4>
+                        <form id="add-layer-form">
+                            <div class="form-group">
+                                <label for="start-depth">Начало слоя (м)</label>
+                                <input type="number" id="start-depth" step="0.01" value="${nextStartDepth}" readonly>
+                            </div>
+                            <div class="form-group">
+                                <label for="end-depth">Конец слоя (м) *</label>
+                                <input type="number" id="end-depth" step="0.01" min="${nextStartDepth + 0.01}" max="${well.design_depth}" required>
+                                <small>Осталось глубины: ${remainingDepth.toFixed(2)} м</small>
+                            </div>
+                            <div class="form-group">
+                                <label for="lithology">Литология *</label>
+                                <select id="lithology" required>
+                                    <option value="">Выберите литологию</option>
+                                    <option value="PRS">ПРС</option>
+                                    <option value="PEAT">Торф</option>
+                                    <option value="LOAM">Суглинок</option>
+                                    <option value="SANDY_LOAM">Супесь</option>
+                                    <option value="SAND">Песок</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="description">Описание (необязательно)</label>
+                                <textarea id="description" rows="2" placeholder="Дополнительное описание слоя"></textarea>
+                            </div>
+                            <button type="submit" class="btn btn-success">Добавить слой</button>
+                        </form>
+                    </div>
+                ` : `
+                    <p class="max-depth">Достигнута проектная глубина скважины</p>
+                `}
+            </div>
+        </div>
+    `;
 
     document.getElementById('main-content').innerHTML = html;
 
     document.getElementById('back-btn').addEventListener('click', () => {
       this.showWellsList();
     });
+
+    // Если есть форма, добавляем обработчик
+    if (remainingDepth > 0) {
+      document.getElementById('add-layer-form').addEventListener('submit', (e) => {
+        e.preventDefault();
+        this.addLayerInPlace(wellId);
+      });
+    }
   }
+
+  addLayerInPlace(wellId) {
+    console.log('addLayerInPlace вызван для скважины:', wellId);
+
+    const well = this.wells.find(w => w.id == wellId);
+    if (!well) return;
+
+    const startDepth = parseFloat(document.getElementById('start-depth').value);
+    const endDepth = parseFloat(document.getElementById('end-depth').value);
+    const lithology = document.getElementById('lithology').value;
+    const description = document.getElementById('description').value.trim();
+
+    console.log('Данные для создания слоя:', { startDepth, endDepth, lithology, description });
+
+    // Валидация
+    if (!endDepth || !lithology) {
+      alert('Пожалуйста, заполните все обязательные поля');
+      return;
+    }
+
+    if (endDepth <= startDepth) {
+      alert('Конечная глубина должна быть больше начальной');
+      return;
+    }
+
+    if (endDepth > well.design_depth) {
+      alert('Конечная глубина не может превышать проектную глубину скважины');
+      return;
+    }
+
+    // Проверка перекрытия слоев
+    if (well.layers) {
+      const isOverlapping = well.layers.some(layer =>
+        (startDepth < layer.end_depth && endDepth > layer.start_depth)
+      );
+
+      if (isOverlapping) {
+        alert('Слой перекрывается с существующими слоями');
+        return;
+      }
+    }
+
+    // Создаем слой
+    const layer = {
+      id: Date.now().toString(),
+      start_depth: startDepth,
+      end_depth: endDepth,
+      lithology: lithology,
+      description: description,
+      thickness: (endDepth - startDepth).toFixed(2)
+    };
+
+    if (!well.layers) well.layers = [];
+    well.layers.push(layer);
+
+    // Сортируем слои по глубине
+    well.layers.sort((a, b) => a.start_depth - b.start_depth);
+
+    // Сохраняем
+    this.saveWells();
+    console.log('Слой сохранен');
+
+    // Обновляем интерфейс, снова вызывая showWellDetails
+    this.showWellDetails(wellId);
+  }
+
   // Добавляем этот метод в класс WellManager (после метода deleteLayer)
   async syncSingleWell(wellId) {
     if (!navigator.onLine) {
@@ -738,220 +872,6 @@ class WellManager {
         syncAllBtn.disabled = false;
       }
     }
-  }
-
-  // Добавляем метод для быстрого добавления слоев (после syncSingleWell)
-  showAddLayerForm(wellId) {
-    const well = this.wells.find(w => w.id === wellId);
-    if (!well) return;
-
-    // Определяем следующую доступную глубину
-    let nextStartDepth = 0;
-    if (well.layers && well.layers.length > 0) {
-      const lastLayer = well.layers[well.layers.length - 1];
-      nextStartDepth = parseFloat(lastLayer.end_depth);
-    }
-
-    const html = `
-            <div class="component">
-                <div class="form-header">
-                    <h2>Добавить слой к скважине: ${well.name}</h2>
-                    <button id="back-to-well" class="btn btn-secondary">← Назад к скважине</button>
-                </div>
-                
-                <form id="quick-layer-form" class="quick-layer-form">
-                    <div class="depth-inputs">
-                        <div class="form-group">
-                            <label for="quick-start-depth">Начало слоя (м)</label>
-                            <input type="number" id="quick-start-depth" step="0.01" min="0" 
-                                   value="${nextStartDepth}" readonly>
-                            <small>Автоматически рассчитывается</small>
-                        </div>
-                        
-                        <div class="form-group">
-                            <label for="quick-end-depth">Конец слоя (м) *</label>
-                            <input type="number" id="quick-end-depth" step="0.01" min="${nextStartDepth + 0.01}" 
-                                   max="${well.design_depth}" required 
-                                   placeholder="Введите глубину...">
-                            <small>Макс: ${well.design_depth} м</small>
-                        </div>
-                    </div>
-                    
-                    <div class="lithology-buttons">
-                        <label>Литология *</label>
-                        <div class="button-group">
-                            <button type="button" class="litho-btn active" data-lithology="PRS">ПРС</button>
-                            <button type="button" class="litho-btn" data-lithology="PEAT">Торф</button>
-                            <button type="button" class="litho-btn" data-lithology="LOAM">Суглинок</button>
-                            <button type="button" class="litho-btn" data-lithology="SANDY_LOAM">Супесь</button>
-                            <button type="button" class="litho-btn" data-lithology="SAND">Песок</button>
-                        </div>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label for="quick-description">Описание (необязательно)</label>
-                        <textarea id="quick-description" rows="2" placeholder="Дополнительное описание слоя"></textarea>
-                    </div>
-                    
-                    <div class="form-actions">
-                        <button type="submit" class="btn btn-success btn-large">✅ Добавить слой</button>
-                    </div>
-                </form>
-                
-                ${well.layers && well.layers.length > 0 ? `
-                    <div class="existing-layers">
-                        <h3>Существующие слои</h3>
-                        <div class="layers-list">
-                            ${well.layers.map(layer => `
-                                <div class="layer-item">
-                                    <div class="layer-info">
-                                        <strong>${layer.start_depth} - ${layer.end_depth} м</strong>
-                                        <span class="lithology-badge ${layer.lithology}">${this.getLithologyName(layer.lithology)}</span>
-                                        <span class="thickness">${layer.thickness} м</span>
-                                    </div>
-                                </div>
-                            `).join('')}
-                        </div>
-                    </div>
-                ` : ''}
-            </div>
-        `;
-
-    document.getElementById('main-content').innerHTML = html;
-
-    // Обработчик для кнопки назад
-    document.getElementById('back-to-well').addEventListener('click', () => {
-      this.showWellDetails(wellId);
-    });
-
-    // Обработчики для кнопок литологии
-    let selectedLithology = 'PRS';
-    document.querySelectorAll('.litho-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        document.querySelectorAll('.litho-btn').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        selectedLithology = btn.dataset.lithology;
-      });
-    });
-
-    // Обработчик формы
-    document.getElementById('quick-layer-form').addEventListener('submit', (e) => {
-      e.preventDefault();
-      this.addLayerQuick(wellId, selectedLithology);
-    });
-
-    // Автофокус на поле конечной глубины
-    document.getElementById('quick-end-depth').focus();
-  }
-
-  // Метод для быстрого добавления слоя
-  addLayerQuick(wellId, lithology) {
-    const well = this.wells.find(w => w.id === wellId);
-    if (!well) return;
-
-    const startDepth = parseFloat(document.getElementById('quick-start-depth').value);
-    const endDepth = parseFloat(document.getElementById('quick-end-depth').value);
-    const description = document.getElementById('quick-description').value.trim();
-
-    // Валидация
-    if (!endDepth) {
-      alert('Пожалуйста, укажите конечную глубину');
-      return;
-    }
-
-    if (endDepth <= startDepth) {
-      alert('Конечная глубина должна быть больше начальной');
-      return;
-    }
-
-    if (endDepth > well.design_depth) {
-      alert('Конечная глубина не может превышать проектную глубину скважины');
-      return;
-    }
-
-    // Проверка перекрытия слоев
-    if (well.layers) {
-      const isOverlapping = well.layers.some(layer =>
-        (startDepth < layer.end_depth && endDepth > layer.start_depth)
-      );
-
-      if (isOverlapping) {
-        alert('Слой перекрывается с существующими слоями');
-        return;
-      }
-    }
-
-    const layer = {
-      id: Date.now().toString(),
-      start_depth: startDepth,
-      end_depth: endDepth,
-      lithology: lithology,
-      description: description,
-      thickness: (endDepth - startDepth).toFixed(2)
-    };
-
-    if (!well.layers) well.layers = [];
-    well.layers.push(layer);
-
-    // Сортируем слои по глубине
-    well.layers.sort((a, b) => a.start_depth - b.start_depth);
-
-    this.saveWells();
-    alert(`Слой ${startDepth}-${endDepth} м добавлен успешно!`);
-
-    // Если осталось место, предлагаем добавить следующий слой
-    const remainingDepth = well.design_depth - endDepth;
-    if (remainingDepth > 0.1) {
-      if (confirm(`Добавить следующий слой? Осталось ${remainingDepth.toFixed(2)} м`)) {
-        this.showAddLayerForm(wellId);
-      } else {
-        this.showWellDetails(wellId);
-      }
-    } else {
-      alert('Достигнута проектная глубина скважины!');
-      this.showWellDetails(wellId);
-    }
-  }
-  // Добавляем метод showWellDetails если его нет
-  showWellDetails(wellId) {
-    const well = this.wells.find(w => w.id === wellId);
-    if (!well) return;
-
-    // Простая версия для тестирования
-    const html = `
-            <div class="component">
-                <div class="well-details-header">
-                    <h2>${well.name}</h2>
-                    <button id="back-btn" class="btn btn-secondary">← Назад к списку</button>
-                </div>
-                
-                <div class="well-info">
-                    <p><strong>Участок:</strong> ${well.area}</p>
-                    <p><strong>Сооружение:</strong> ${well.structure}</p>
-                    <p><strong>Проектная глубина:</strong> ${well.design_depth} м</p>
-                    <p><strong>Статус:</strong> ${well.id && well.id.toString().startsWith('offline_') ? 'Оффлайн' : 'Синхронизировано'}</p>
-                </div>
-                
-                <div class="action-buttons">
-                    <button id="add-layers-btn" class="btn btn-success">➕ Добавить слои</button>
-                    <button id="back-to-list" class="btn btn-secondary">Назад к списку</button>
-                </div>
-            </div>
-        `;
-
-    document.getElementById('main-content').innerHTML = html;
-
-    document.getElementById('back-btn').addEventListener('click', () => {
-      this.showWellsList();
-    });
-
-    document.getElementById('back-to-list').addEventListener('click', () => {
-      this.showWellsList();
-    });
-
-    document.getElementById('add-layers-btn').addEventListener('click', () => {
-      this.showAddLayerForm(wellId);
-    });
   }
 }
 
